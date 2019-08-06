@@ -11,7 +11,7 @@ import web
 from bson.objectid import ObjectId
 
 from inginious.frontend.pages.utils import INGIniousAuthPage
-
+from inginious.frontend.courses import WebAppCourse
 
 class AggregationPage(INGIniousAuthPage):
     """ Aggregation page """
@@ -21,7 +21,8 @@ class AggregationPage(INGIniousAuthPage):
     def GET_AUTH(self, courseid):  # pylint: disable=arguments-differ
         """ GET request """
 
-        course = self.course_factory.get_course(courseid)
+        course = self.database.courses.find_one({"_id": courseid})
+        course = WebAppCourse(course["_id"], course, self.task_factory, self.plugin_manager)
         username = self.user_manager.session_username()
 
         error = False
