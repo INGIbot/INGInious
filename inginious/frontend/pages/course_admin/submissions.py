@@ -15,6 +15,7 @@ from collections import OrderedDict
 from inginious.frontend.pages.course_admin.utils import make_csv, INGIniousAdminPage
 from inginious.frontend.pages.course_admin.statistics import compute_statistics
 from inginious.common.base import id_checker
+from inginious.frontend.tasks import WebAppTask
 
 
 class CourseSubmissionsPage(INGIniousAdminPage):
@@ -36,8 +37,9 @@ class CourseSubmissionsPage(INGIniousAdminPage):
                 raise web.notfound()
             
             input = self.get_input()
-            tasks = course.get_tasks()
-            data, __ = self.get_submissions(course, input)
+            task_descs = self.database.tasks.find({"courseid": course.get_id()}).sort("order")
+            tasks = OrderedDict((task_desc["taskid"],  WebAppTask(course.get_id(), task_desc["taskid"], task_desc, self.filesystem, self.plugin_manager, self.problem_types)) for task_desc in task_descs)
+            data, __ = self.get_submissions(course, tasks, input)
             for submission in data:
                 self.submission_manager.replay_job(tasks[submission["taskid"]], submission)
             msgs.append(_("{0} selected submissions were set for replay.").format(str(len(data))))
@@ -56,15 +58,17 @@ class CourseSubmissionsPage(INGIniousAdminPage):
     def page(self, course, msgs=None):
         """ Get all data and display the page """
         msgs = msgs if msgs else []
+
+        task_descs = self.database.tasks.find({"courseid": course.get_id()}).sort("order")
+        tasks = OrderedDict((task_desc["taskid"],  WebAppTask(course.get_id(), task_desc["taskid"], task_desc, self.filesystem, self.plugin_manager, self.problem_types)) for task_desc in task_descs)
         
         user_input = self.get_input()
-        data, classroom = self.get_submissions(course, user_input)  # ONLY classrooms user wants to query
+        data, classroom = self.get_submissions(course, tasks, user_input)  # ONLY classrooms user wants to query
         if len(data) == 0 and not self.show_collapse(user_input):
             msgs.append(_("No submissions found"))
 
         classrooms = self.user_manager.get_course_aggregations(course)  # ALL classrooms of the course
         users = self.get_users(course)  # All users of the course
-        tasks = course.get_tasks()  # All tasks of the course
 
         statistics = None
         if user_input.stat != "no_stat":
@@ -110,7 +114,7 @@ class CourseSubmissionsPage(INGIniousAdminPage):
             key=lambda k: k[1][0] if k[1] is not None else ""))
         return users
         
-    def get_submissions(self, course, user_input):
+    def get_submissions(self, course, tasks, user_input):
         """ Returns the list of submissions and corresponding aggragations based on inputs """
 
         # Build lists of wanted users based on classrooms and specific users
@@ -121,7 +125,7 @@ class CourseSubmissionsPage(INGIniousAdminPage):
         
         # Get tasks based on categories
         categories = set(user_input.org_tags)
-        more_tasks = [taskid for taskid, task in course.get_tasks().items() if categories.intersection(task.get_categories(course))]
+        more_tasks = [taskid for taskid, task in tasks.items() if categories.intersection(task.get_categories(course))]
 
         #Base query
         query_base = {

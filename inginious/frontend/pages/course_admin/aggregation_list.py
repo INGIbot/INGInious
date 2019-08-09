@@ -85,7 +85,8 @@ class CourseAggregationListPage(INGIniousAdminPage):
     def page(self, course, msg="", error=False):
         """ Get all data and display the page """
         aggregations = OrderedDict()
-        taskids = list(course.get_tasks().keys())
+        task_descs = self.database.tasks.find({"courseid": course.get_id()}).sort("order")
+        taskids = [task_desc["taskid"] for task_desc in task_descs]
 
         for aggregation in self.user_manager.get_course_aggregations(course):
             aggregations[aggregation['_id']] = dict(list(aggregation.items()) +

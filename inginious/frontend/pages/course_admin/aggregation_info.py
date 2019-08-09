@@ -2,11 +2,12 @@
 #
 # This file is part of INGInious. See the LICENSE and the COPYRIGHTS files for
 # more information about the licensing of this file.
-
+from collections import OrderedDict
 
 import web
 from bson.objectid import ObjectId
 
+from inginious.frontend.tasks import WebAppTask
 from inginious.frontend.pages.course_admin.utils import make_csv, INGIniousAdminPage
 
 
@@ -50,7 +51,8 @@ class CourseAggregationInfoPage(INGIniousAdminPage):
                 }
             ]))
 
-        tasks = course.get_tasks()
+        task_descs = self.database.tasks.find({"courseid": course.get_id()}).sort("order")
+        tasks = OrderedDict((task_desc["taskid"], WebAppTask(course.get_id(), task_desc["taskid"], task_desc, self.filesystem, self.plugin_manager, self.problem_types)) for task_desc in task_descs)
         result = dict([(taskid, {"taskid": taskid, "name": tasks[taskid].get_name(self.user_manager.session_language()), "tried": 0, "status": "notviewed",
                                  "grade": 0, "url": self.submission_url_generator(aggregationid, taskid)}) for taskid in tasks])
 
